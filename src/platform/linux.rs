@@ -2,6 +2,7 @@ use crate::WindowInfo;
 use napi::bindgen_prelude::*;
 use std::collections::HashMap;
 use std::ffi::CStr;
+use std::os::raw::{c_int, c_long, c_ulong};
 use std::ptr;
 use std::sync::Mutex;
 
@@ -28,19 +29,11 @@ fn get_display() -> Option<*mut Display> {
 }
 
 /// Enable or disable click-through on a window
-/// Note: X11 doesn't have a direct click-through mechanism like Windows
-/// This implementation uses a workaround with window properties
 pub fn set_click_through(handle: i64, enable: bool) -> Result<()> {
-  // Track state internally - actual implementation would require compositor support
+  // Track state internally
   if let Ok(mut state) = CLICK_THROUGH_STATE.lock() {
     state.insert(handle, enable);
   }
-
-  // Note: True click-through on X11 requires:
-  // 1. Compositor support (like Picom with transparent windows)
-  // 2. Or using XShape extension to create input regions
-  // For now, we just track the state
-
   Ok(())
 }
 
@@ -76,10 +69,10 @@ fn get_window_name(display: *mut Display, window: Window) -> String {
       let net_wm_name = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
       let utf8_type = XInternAtom(display, utf8_string.as_ptr() as *const i8, 0);
 
-      let mut actual_type: u64 = 0;
-      let mut actual_format: i32 = 0;
-      let mut nitems: u64 = 0;
-      let mut bytes_after: u64 = 0;
+      let mut actual_type: c_ulong = 0;
+      let mut actual_format: c_int = 0;
+      let mut nitems: c_ulong = 0;
+      let mut bytes_after: c_ulong = 0;
       let mut prop: *mut u8 = ptr::null_mut();
 
       let status = XGetWindowProperty(
@@ -87,7 +80,7 @@ fn get_window_name(display: *mut Display, window: Window) -> String {
         window,
         net_wm_name,
         0,
-        i64::MAX,
+        c_long::MAX,
         0,
         utf8_type,
         &mut actual_type,
@@ -116,10 +109,10 @@ fn get_window_pid(display: *mut Display, window: Window) -> u32 {
     let atom_name = b"_NET_WM_PID\0";
     let net_wm_pid = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
 
-    let mut actual_type: u64 = 0;
-    let mut actual_format: i32 = 0;
-    let mut nitems: u64 = 0;
-    let mut bytes_after: u64 = 0;
+    let mut actual_type: c_ulong = 0;
+    let mut actual_format: c_int = 0;
+    let mut nitems: c_ulong = 0;
+    let mut bytes_after: c_ulong = 0;
     let mut prop: *mut u8 = ptr::null_mut();
 
     let status = XGetWindowProperty(
@@ -155,10 +148,10 @@ fn get_client_list(display: *mut Display, root: Window) -> Vec<Window> {
     let atom_name = b"_NET_CLIENT_LIST\0";
     let net_client_list = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
 
-    let mut actual_type: u64 = 0;
-    let mut actual_format: i32 = 0;
-    let mut nitems: u64 = 0;
-    let mut bytes_after: u64 = 0;
+    let mut actual_type: c_ulong = 0;
+    let mut actual_format: c_int = 0;
+    let mut nitems: c_ulong = 0;
+    let mut bytes_after: c_ulong = 0;
     let mut prop: *mut u8 = ptr::null_mut();
 
     let status = XGetWindowProperty(
@@ -166,7 +159,7 @@ fn get_client_list(display: *mut Display, root: Window) -> Vec<Window> {
       root,
       net_client_list,
       0,
-      i64::MAX,
+      c_long::MAX,
       0,
       0, // AnyPropertyType
       &mut actual_type,
@@ -181,7 +174,8 @@ fn get_client_list(display: *mut Display, root: Window) -> Vec<Window> {
     }
 
     let windows: Vec<Window> = if actual_format == 32 {
-      let window_ids = slice::from_raw_parts(prop as *const u64, nitems as usize);
+      // X11 Window handles are usually c_ulong
+      let window_ids = slice::from_raw_parts(prop as *const Window, nitems as usize);
       window_ids.to_vec()
     } else {
       vec![]
@@ -305,7 +299,7 @@ pub fn set_always_on_top(handle: i64, on_top: bool) -> Result<()> {
       .client_message
       .data
       .set_long(0, if on_top { 1 } else { 0 });
-    event.client_message.data.set_long(1, state_above as i64);
+    event.client_message.data.set_long(1, state_above as c_long);
     event.client_message.data.set_long(2, 0);
 
     XSendEvent(

@@ -30,7 +30,11 @@ pub fn set_click_through(handle: i64, enable: bool) -> Result<()> {
       (ex_style & !(WS_EX_TRANSPARENT.0 as isize)) | (WS_EX_LAYERED.0 as isize)
     };
 
+    #[cfg(target_pointer_width = "64")]
     SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style);
+
+    #[cfg(target_pointer_width = "32")]
+    SetWindowLongPtrW(hwnd, GWL_EXSTYLE, new_style as i32);
 
     // Refresh window to apply style changes
     let _ = SetWindowPos(
@@ -275,7 +279,14 @@ pub fn set_window_opacity(handle: i64, opacity: f64) -> Result<()> {
     // Ensure WS_EX_LAYERED is set
     let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as isize;
     if (ex_style & WS_EX_LAYERED.0 as isize) == 0 {
+      #[cfg(target_pointer_width = "64")]
       SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as isize);
+      #[cfg(target_pointer_width = "32")]
+      SetWindowLongPtrW(
+        hwnd,
+        GWL_EXSTYLE,
+        (ex_style | WS_EX_LAYERED.0 as isize) as i32,
+      );
     }
 
     // LWA_ALPHA = 0x02
