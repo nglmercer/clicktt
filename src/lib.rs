@@ -27,7 +27,6 @@ pub struct WindowInfo {
   /// Window width
   pub width: i32,
   /// Window height
-  /// Window height
   pub height: i32,
   /// Path to the executable process that owns the window
   pub path: String,

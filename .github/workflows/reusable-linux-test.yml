@@ -48,8 +48,8 @@ jobs:
         with:
           name: bindings-${{ inputs.target }}
           path: .
-      - name: List packages
-        run: ls -R .
+      - name: List files
+        run: ls -laR .
         shell: bash
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -64,6 +64,7 @@ jobs:
           image: ${{ steps.docker.outputs.IMAGE }}
           options: '-v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
           run: |
+            apt-get update && apt-get install -y curl unzip ca-certificates
             curl -fsSL https://bun.sh/install | bash
             export PATH="$HOME/.bun/bin:$PATH"
             bun test

@@ -75,7 +75,6 @@ export interface WindowInfo {
   width: number
   /**
    * Window height
-   * Window height
    */
   height: number
   /** Path to the executable process that owns the window */
