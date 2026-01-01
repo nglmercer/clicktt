@@ -38,7 +38,7 @@ jobs:
             if ('${{ inputs.target }}'.endsWith('-musl')) {
               console.log('IMAGE=node:${{ inputs.node-version }}-alpine')
             } else {
-              console.log('IMAGE=node:${{ inputs.node-version }}-slim')
+              console.log('IMAGE=node:${{ inputs.node-version }}')
             }
           " >> $GITHUB_OUTPUT
       - name: Install dependencies
@@ -48,8 +48,11 @@ jobs:
         with:
           name: bindings-${{ inputs.target }}
           path: .
+      - name: Build
+        run: ${{ inputs.build-command }}
+        shell: bash
       - name: List files
-        run: ls -laR .
+        run: ls -la .
         shell: bash
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -64,7 +67,9 @@ jobs:
           image: ${{ steps.docker.outputs.IMAGE }}
           options: '-v ${{ github.workspace }}:${{ github.workspace }} -w ${{ github.workspace }} --platform ${{ steps.docker.outputs.PLATFORM }}'
           run: |
-            apt-get update && apt-get install -y curl unzip ca-certificates
+            if [ -f /usr/bin/apt-get ]; then
+              apt-get update && apt-get install -y libx11-6
+            fi
             curl -fsSL https://bun.sh/install | bash
             export PATH="$HOME/.bun/bin:$PATH"
             bun test

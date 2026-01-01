@@ -104,6 +104,9 @@ jobs:
       - name: Build
         run: ${{ inputs.build-command }}
         shell: bash
+      - name: List files
+        run: ls -la .
+        shell: bash
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
