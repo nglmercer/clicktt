@@ -1,31 +1,117 @@
 #![deny(clippy::all)]
 
+mod platform;
+mod utils;
+
+use napi::bindgen_prelude::*;
 use napi_derive::napi;
 
-#[napi]
-pub fn set_click_through(handle: i64) {
-    #[cfg(target_os = "windows")]
-    unsafe {
-        use windows::Win32::UI::WindowsAndMessaging::*;
-        use windows::Win32::Foundation::HWND;
-        
-        let hwnd = HWND(handle as isize);
-        let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-        // WS_EX_TRANSPARENT (0x20) hace que ignore el mouse
-        // WS_EX_LAYERED (0x80000) es necesario en versiones viejas para transparencia
-        SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | (WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0) as isize);
-    }
+/// Represents information about a window
+#[napi(object)]
+#[derive(Clone)]
+pub struct WindowInfo {
+    /// Window handle (HWND on Windows, Window ID on X11, NSWindow pointer on macOS)
+    pub handle: i64,
+    /// Window title
+    pub title: String,
+    /// Process ID that owns the window
+    pub process_id: u32,
+    /// Window class name (Windows only, empty on other platforms)
+    pub class_name: String,
+    /// Whether the window is visible
+    pub visible: bool,
+    /// Window position X
+    pub x: i32,
+    /// Window position Y
+    pub y: i32,
+    /// Window width
+    pub width: i32,
+    /// Window height
+    pub height: i32,
+}
 
-    #[cfg(target_os = "macos")]
-    unsafe {
-        use objc::{runtime::Object, msg_send, sel, sel_impl};
-        let window = handle as *mut Object;
-        let _: () = msg_send![window, setIgnoresMouseEvents: true];
-    }
+/// Enable click-through on a window (mouse events pass through)
+#[napi(js_name = "setClickThrough")]
+pub fn set_click_through(handle: Unknown) -> Result<()> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::set_click_through(handle_val, true)
+}
 
-    #[cfg(target_os = "linux")]
-    unsafe {
-        // Lógica para X11 usando XShapeCombineRectangles con una región vacía
-        // Esto efectivamente drena los eventos del mouse a través de la ventana
-    }
+/// Disable click-through on a window (window captures mouse events again)
+#[napi(js_name = "removeClickThrough")]
+pub fn remove_click_through(handle: Unknown) -> Result<()> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::set_click_through(handle_val, false)
+}
+
+/// Toggle click-through state on a window
+/// Returns the new state: true = click-through enabled, false = disabled
+#[napi(js_name = "toggleClickThrough")]
+pub fn toggle_click_through(handle: Unknown) -> Result<bool> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::toggle_click_through(handle_val)
+}
+
+/// Check if click-through is currently enabled for a window
+#[napi(js_name = "isClickThrough")]
+pub fn is_click_through(handle: Unknown) -> Result<bool> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::is_click_through(handle_val)
+}
+
+/// Get all visible windows
+#[napi(js_name = "getWindows")]
+pub fn get_windows() -> Result<Vec<WindowInfo>> {
+    platform::get_windows()
+}
+
+/// Find windows by title (supports partial matching)
+/// If `exact` is true, only returns windows with exact title match
+/// If `exact` is false, returns windows containing the search string
+#[napi(js_name = "findWindowsByTitle")]
+pub fn find_windows_by_title(title: String, exact: Option<bool>) -> Result<Vec<WindowInfo>> {
+    let exact = exact.unwrap_or(false);
+    let all_windows = platform::get_windows()?;
+    
+    let filtered: Vec<WindowInfo> = all_windows
+        .into_iter()
+        .filter(|w| {
+            if exact {
+                w.title == title
+            } else {
+                w.title.to_lowercase().contains(&title.to_lowercase())
+            }
+        })
+        .collect();
+    
+    Ok(filtered)
+}
+
+/// Find the first window matching the title
+#[napi(js_name = "findWindowByTitle")]
+pub fn find_window_by_title(title: String, exact: Option<bool>) -> Result<Option<WindowInfo>> {
+    let windows = find_windows_by_title(title, exact)?;
+    Ok(windows.into_iter().next())
+}
+
+/// Get window info by handle
+#[napi(js_name = "getWindowInfo")]
+pub fn get_window_info(handle: Unknown) -> Result<Option<WindowInfo>> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::get_window_info(handle_val)
+}
+
+/// Make a window always on top
+#[napi(js_name = "setAlwaysOnTop")]
+pub fn set_always_on_top(handle: Unknown, on_top: bool) -> Result<()> {
+    let handle_val = utils::to_i64(handle)?;
+    platform::set_always_on_top(handle_val, on_top)
+}
+
+/// Set window transparency/opacity (0.0 = fully transparent, 1.0 = fully opaque)
+#[napi(js_name = "setWindowOpacity")]
+pub fn set_window_opacity(handle: Unknown, opacity: f64) -> Result<()> {
+    let handle_val = utils::to_i64(handle)?;
+    let opacity = opacity.clamp(0.0, 1.0);
+    platform::set_window_opacity(handle_val, opacity)
 }
