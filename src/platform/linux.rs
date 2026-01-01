@@ -231,7 +231,6 @@ pub fn get_windows() -> Result<Vec<WindowInfo>> {
         x: attrs.x,
         y: attrs.y,
         width: attrs.width,
-        width: attrs.width,
         height: attrs.height,
         path: String::new(),
       });
@@ -268,7 +267,6 @@ pub fn get_window_info(handle: i64) -> Result<Option<WindowInfo>> {
       visible,
       x: attrs.x,
       y: attrs.y,
-      width: attrs.width,
       width: attrs.width,
       height: attrs.height,
       path: String::new(),
