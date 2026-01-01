@@ -1,12 +1,13 @@
+#![allow(unexpected_cfgs)]
 use crate::WindowInfo;
 use napi::bindgen_prelude::*;
 
 use cocoa::base::{id, nil};
-use cocoa::foundation::NSString;
-use objc::runtime::{Class, Object, BOOL, NO, YES};
+use objc::runtime::{NO, YES};
 use objc::{msg_send, sel, sel_impl};
 use std::collections::HashMap;
 use std::sync::Mutex;
+use std::os::raw::c_void;
 
 // Track click-through state since macOS doesn't have a direct way to query it
 lazy_static::lazy_static! {
@@ -71,102 +72,86 @@ pub fn get_windows() -> Result<Vec<WindowInfo>> {
     let mut result = Vec::new();
 
     for i in 0..windows_array.len() {
-      let window_info = windows_array.get(i);
-      if let Some(dict) = window_info.downcast::<CFDictionary>() {
-        // Get window number (our handle)
-        let window_number_key = CFString::new("kCGWindowNumber");
-        let handle = match dict.find(&window_number_key) {
+      let window_ptr = *windows_array.get(i) as *const c_void;
+      if window_ptr.is_null() {
+          continue;
+      }
+      
+      let dict: CFDictionary = TCFType::wrap_under_get_rule(window_ptr as *const _);
+      
+      // Get window number (our handle)
+      let window_number_key = CFString::new("kCGWindowNumber");
+      let handle = match dict.find(window_number_key.as_CFTypeRef() as *const c_void) {
           Some(val) => {
-            if let Some(num) = val.downcast::<CFNumber>() {
+              let num: CFNumber = TCFType::wrap_under_get_rule(val as *const _);
               num.to_i64().unwrap_or(0)
-            } else {
-              continue;
-            }
           }
           None => continue,
-        };
+      };
 
-        // Get window name/title
-        let title_key = CFString::new("kCGWindowName");
-        let title = match dict.find(&title_key) {
+      // Get window name/title
+      let title_key = CFString::new("kCGWindowName");
+      let title = match dict.find(title_key.as_CFTypeRef() as *const c_void) {
           Some(val) => {
-            if let Some(s) = val.downcast::<CFString>() {
+              let s: CFString = TCFType::wrap_under_get_rule(val as *const _);
               s.to_string()
-            } else {
-              String::new()
-            }
           }
           None => String::new(),
-        };
+      };
 
-        // Skip windows with empty titles
-        if title.is_empty() {
-          continue;
-        }
-
-        // Get owner PID
-        let pid_key = CFString::new("kCGWindowOwnerPID");
-        let process_id = match dict.find(&pid_key) {
-          Some(val) => {
-            if let Some(num) = val.downcast::<CFNumber>() {
-              num.to_i32().unwrap_or(0) as u32
-            } else {
-              0
-            }
-          }
-          None => 0,
-        };
-
-        // Get bounds
-        let bounds_key = CFString::new("kCGWindowBounds");
-        let (x, y, width, height) = match dict.find(&bounds_key) {
-          Some(val) => {
-            if let Some(bounds_dict) = val.downcast::<CFDictionary>() {
-              let x_key = CFString::new("X");
-              let y_key = CFString::new("Y");
-              let w_key = CFString::new("Width");
-              let h_key = CFString::new("Height");
-
-              let x = bounds_dict
-                .find(&x_key)
-                .and_then(|v| v.downcast::<CFNumber>())
-                .and_then(|n| n.to_i32())
-                .unwrap_or(0);
-              let y = bounds_dict
-                .find(&y_key)
-                .and_then(|v| v.downcast::<CFNumber>())
-                .and_then(|n| n.to_i32())
-                .unwrap_or(0);
-              let width = bounds_dict
-                .find(&w_key)
-                .and_then(|v| v.downcast::<CFNumber>())
-                .and_then(|n| n.to_i32())
-                .unwrap_or(0);
-              let height = bounds_dict
-                .find(&h_key)
-                .and_then(|v| v.downcast::<CFNumber>())
-                .and_then(|n| n.to_i32())
-                .unwrap_or(0);
-              (x, y, width, height)
-            } else {
-              (0, 0, 0, 0)
-            }
-          }
-          None => (0, 0, 0, 0),
-        };
-
-        result.push(WindowInfo {
-          handle,
-          title,
-          process_id,
-          class_name: String::new(), // macOS doesn't have window classes
-          visible: true,
-          x,
-          y,
-          width,
-          height,
-        });
+      // Skip windows with empty titles
+      if title.is_empty() {
+        continue;
       }
+
+      // Get owner PID
+      let pid_key = CFString::new("kCGWindowOwnerPID");
+      let process_id = match dict.find(pid_key.as_CFTypeRef() as *const c_void) {
+        Some(val) => {
+            let num: CFNumber = TCFType::wrap_under_get_rule(val as *const _);
+            num.to_i32().unwrap_or(0) as u32
+        }
+        None => 0,
+      };
+
+      // Get bounds
+      let bounds_key = CFString::new("kCGWindowBounds");
+      let (x, y, width, height) = match dict.find(bounds_key.as_CFTypeRef() as *const c_void) {
+        Some(val) => {
+            let bounds_dict: CFDictionary = TCFType::wrap_under_get_rule(val as *const _);
+            let x_key = CFString::new("X");
+            let y_key = CFString::new("Y");
+            let w_key = CFString::new("Width");
+            let h_key = CFString::new("Height");
+
+            let x = bounds_dict.find(x_key.as_CFTypeRef() as *const c_void)
+                .map(|v| { let n: CFNumber = TCFType::wrap_under_get_rule(v as *const _); n.to_i32().unwrap_or(0) })
+                .unwrap_or(0);
+            let y = bounds_dict.find(y_key.as_CFTypeRef() as *const c_void)
+                .map(|v| { let n: CFNumber = TCFType::wrap_under_get_rule(v as *const _); n.to_i32().unwrap_or(0) })
+                .unwrap_or(0);
+            let width = bounds_dict.find(w_key.as_CFTypeRef() as *const c_void)
+                .map(|v| { let n: CFNumber = TCFType::wrap_under_get_rule(v as *const _); n.to_i32().unwrap_or(0) })
+                .unwrap_or(0);
+            let height = bounds_dict.find(h_key.as_CFTypeRef() as *const c_void)
+                .map(|v| { let n: CFNumber = TCFType::wrap_under_get_rule(v as *const _); n.to_i32().unwrap_or(0) })
+                .unwrap_or(0);
+            (x, y, width, height)
+        }
+        None => (0, 0, 0, 0),
+      };
+
+      result.push(WindowInfo {
+        handle,
+        title,
+        process_id,
+        class_name: String::new(),
+        visible: true,
+        x,
+        y,
+        width,
+        height,
+      });
     }
 
     Ok(result)

@@ -35,7 +35,12 @@ jobs:
         with:
           components: clippy, rustfmt
       - name: Install dependencies
-        run: bun install
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y libx11-dev pkg-config
+          fi
+          bun install
       - name: Oxlint
         run: bun run lint
       - name: Cargo fmt
@@ -50,15 +55,30 @@ jobs:
           - host: macos-latest
             target: x86_64-apple-darwin
             build: bun run build --target x86_64-apple-darwin
-          - host: windows-latest
-            build: bun run build --target x86_64-pc-windows-msvc
-            target: x86_64-pc-windows-msvc
-          - host: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            build: bun run build --target x86_64-unknown-linux-gnu --use-napi-cross
           - host: macos-latest
             target: aarch64-apple-darwin
             build: bun run build --target aarch64-apple-darwin
+          - host: windows-latest
+            target: x86_64-pc-windows-msvc
+            build: bun run build --target x86_64-pc-windows-msvc
+          - host: windows-latest
+            target: i686-pc-windows-msvc
+            build: bun run build --target i686-pc-windows-msvc
+          - host: windows-latest
+            target: aarch64-pc-windows-msvc
+            build: bun run build --target aarch64-pc-windows-msvc
+          - host: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            build: bun run build --target x86_64-unknown-linux-gnu --use-napi-cross
+          - host: ubuntu-latest
+            target: i686-unknown-linux-gnu
+            build: bun run build --target i686-unknown-linux-gnu --use-napi-cross
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            build: bun run build --target aarch64-unknown-linux-gnu --use-napi-cross
+          - host: ubuntu-latest
+            target: arm-unknown-linux-gnueabihf
+            build: bun run build --target arm-unknown-linux-gnueabihf --use-napi-cross
     name: stable - ${{ matrix.settings.target }} - node@22
     runs-on: ${{ matrix.settings.host }}
     steps:
@@ -99,7 +119,12 @@ jobs:
         if: ${{ matrix.settings.setup }}
         shell: bash
       - name: Install dependencies
-        run: bun install
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y libx11-dev pkg-config
+          fi
+          bun install
       - name: Build
         run: ${{ matrix.settings.build }}
         shell: bash
