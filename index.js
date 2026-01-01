@@ -576,4 +576,13 @@ if (!nativeBinding) {
 }
 
 module.exports = nativeBinding
+module.exports.findWindowByTitle = nativeBinding.findWindowByTitle
+module.exports.findWindowsByTitle = nativeBinding.findWindowsByTitle
+module.exports.getWindowInfo = nativeBinding.getWindowInfo
+module.exports.getWindows = nativeBinding.getWindows
+module.exports.isClickThrough = nativeBinding.isClickThrough
+module.exports.removeClickThrough = nativeBinding.removeClickThrough
+module.exports.setAlwaysOnTop = nativeBinding.setAlwaysOnTop
 module.exports.setClickThrough = nativeBinding.setClickThrough
+module.exports.setWindowOpacity = nativeBinding.setWindowOpacity
+module.exports.toggleClickThrough = nativeBinding.toggleClickThrough
