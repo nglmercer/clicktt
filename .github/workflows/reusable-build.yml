@@ -1,0 +1,114 @@
+name: Build
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      host:
+        required: true
+        type: string
+      build-command:
+        required: true
+        type: string
+    outputs:
+      artifact-name:
+        description: 'The name of the uploaded artifact'
+        value: bindings-${{ inputs.target }}
+
+env:
+  DEBUG: napi:*
+  APP_NAME: clicktt
+  MACOSX_DEPLOYMENT_TARGET: '10.13'
+  CARGO_INCREMENTAL: '1'
+  PKG_CONFIG_ALLOW_CROSS: '1'
+
+jobs:
+  build:
+    runs-on: ${{ inputs.host }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          targets: ${{ inputs.target }}
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            ~/.napi-rs
+            .cargo-cache
+            target/
+          key: ${{ inputs.target }}-cargo-${{ inputs.host }}
+      - uses: mlugg/setup-zig@v2
+        if: ${{ contains(inputs.target, 'musl') }}
+        with:
+          version: 0.14.1
+      - name: Install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        if: ${{ contains(inputs.target, 'musl') }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          tool: cargo-zigbuild
+      - name: Install dependencies
+        run: |
+          if [ "$RUNNER_OS" == "Linux" ]; then
+            sudo apt-get update
+            sudo apt-get install -y libx11-dev pkg-config
+            case "${{ inputs.target }}" in
+              i686-unknown-linux-gnu)
+                sudo dpkg --add-architecture i386
+                sudo apt-get update
+                sudo apt-get install -y libx11-dev:i386 gcc-multilib
+                echo "PKG_CONFIG_PATH=/usr/lib/i386-linux-gnu/pkgconfig" >> $GITHUB_ENV
+                ;;
+              aarch64-unknown-linux-gnu)
+                sudo dpkg --add-architecture arm64
+                [ -f /etc/apt/sources.list ] && sudo sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+                [ -f /etc/apt/sources.list.d/ubuntu.sources ] && sudo sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main universe restricted multiverse" | sudo tee /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                sudo apt-get update
+                sudo apt-get install -y libx11-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+                echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
+                echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
+                ;;
+              arm-unknown-linux-gnueabihf)
+                sudo dpkg --add-architecture armhf
+                [ -f /etc/apt/sources.list ] && sudo sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+                [ -f /etc/apt/sources.list.d/ubuntu.sources ] && sudo sed -i 's/^Types: deb$/Types: deb\nArchitectures: amd64/' /etc/apt/sources.list.d/ubuntu.sources
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble main universe restricted multiverse" | sudo tee /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-backports main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list.d/arm-ports.list
+                sudo apt-get update
+                sudo apt-get install -y libx11-dev:armhf gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
+                echo "PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig" >> $GITHUB_ENV
+                echo "CARGO_TARGET_ARM_UNKNOWN_LINUX_GNUEABIHF_LINKER=arm-linux-gnueabihf-gcc" >> $GITHUB_ENV
+                ;;
+            esac
+          fi
+          bun install
+        shell: bash
+      - name: Build
+        run: ${{ inputs.build-command }}
+        shell: bash
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bindings-${{ inputs.target }}
+          path: |
+            ${{ env.APP_NAME }}.*.node
+            ${{ env.APP_NAME }}.*.wasm
+          if-no-files-found: error

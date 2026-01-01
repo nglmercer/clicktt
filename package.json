@@ -96,5 +96,18 @@
   "packageManager": "bun@1.1.0",
   "dependencies": {
     "extract-file-icon": "^0.3.2"
+  },
+  "optionalDependencies": {
+    "clicktt-win32-x64-msvc": "1.0.0",
+    "clicktt-win32-ia32-msvc": "1.0.0",
+    "clicktt-win32-arm64-msvc": "1.0.0",
+    "clicktt-darwin-x64": "1.0.0",
+    "clicktt-darwin-arm64": "1.0.0",
+    "clicktt-linux-x64-gnu": "1.0.0",
+    "clicktt-linux-arm64-gnu": "1.0.0",
+    "clicktt-linux-arm-gnueabihf": "1.0.0",
+    "clicktt-linux-ia32-gnu": "1.0.0",
+    "clicktt-linux-x64-musl": "1.0.0",
+    "clicktt-linux-arm64-musl": "1.0.0"
   }
 }

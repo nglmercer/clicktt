@@ -3,13 +3,18 @@ use napi::bindgen_prelude::*;
 use std::ffi::OsString;
 use std::os::windows::ffi::OsStringExt;
 
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, RECT, TRUE};
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, MAX_PATH, RECT, TRUE, WPARAM};
+use windows::Win32::System::ProcessStatus::K32GetModuleFileNameExW;
+use windows::Win32::System::Threading::{
+  OpenProcess, TerminateProcess, PROCESS_QUERY_INFORMATION, PROCESS_TERMINATE, PROCESS_VM_READ,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
-  EnumWindows, GetClassNameW, GetWindowLongPtrW, GetWindowRect, GetWindowTextLengthW,
-  GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, SetWindowLongPtrW, SetWindowPos,
-  GWL_EXSTYLE, HWND_NOTOPMOST, HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-  SWP_NOSIZE, SWP_NOZORDER, WINDOW_EX_STYLE, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-  WS_EX_TRANSPARENT,
+  EnumWindows, GetClassNameW, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect,
+  GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible, PostMessageW,
+  SetForegroundWindow, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_NOTOPMOST,
+  HWND_TOPMOST, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER,
+  SW_MAXIMIZE, SW_MINIMIZE, SW_RESTORE, WINDOW_EX_STYLE, WM_CLOSE, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+  WS_EX_TOOLWINDOW, WS_EX_TRANSPARENT,
 };
 
 /// Enable or disable click-through on a window
@@ -184,6 +189,7 @@ unsafe extern "system" fn enum_windows_callback(hwnd: HWND, lparam: LPARAM) -> B
     y,
     width,
     height,
+    path: get_window_process_path(hwnd.0 as i64).unwrap_or_default(),
   });
 
   TRUE
@@ -231,6 +237,7 @@ pub fn get_window_info(handle: i64) -> Result<Option<WindowInfo>> {
       y,
       width,
       height,
+      path: get_window_process_path(handle).unwrap_or_default(),
     }))
   }
 }
@@ -297,6 +304,146 @@ pub fn set_window_opacity(handle: i64, opacity: f64) -> Result<()> {
       Error::new(
         Status::GenericFailure,
         format!("SetLayeredWindowAttributes failed: {}", e),
+      )
+    })?;
+  }
+  Ok(())
+}
+/// Get the executable path of the process that owns the window
+pub fn get_window_process_path(handle: i64) -> Result<String> {
+  unsafe {
+    let hwnd = HWND(handle as isize);
+    if hwnd.0 == 0 {
+      return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
+    }
+
+    let mut process_id: u32 = 0;
+    GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+
+    let process_handle = OpenProcess(
+      PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+      false,
+      process_id,
+    )
+    .map_err(|e| {
+      Error::new(
+        Status::GenericFailure,
+        format!("Failed to open process: {}", e),
+      )
+    })?;
+
+    let mut buffer = vec![0u16; MAX_PATH as usize];
+    let len = K32GetModuleFileNameExW(process_handle, None, &mut buffer);
+
+    if len == 0 {
+      return Ok(String::new());
+    }
+
+    Ok(
+      OsString::from_wide(&buffer[..len as usize])
+        .to_string_lossy()
+        .into_owned(),
+    )
+  }
+}
+
+/// Close the window (send WM_CLOSE)
+pub fn close_window(handle: i64) -> Result<()> {
+  unsafe {
+    let hwnd = HWND(handle as isize);
+    if hwnd.0 == 0 {
+      return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
+    }
+
+    PostMessageW(hwnd, WM_CLOSE, WPARAM(0), LPARAM(0)).map_err(|e| {
+      Error::new(
+        Status::GenericFailure,
+        format!("Failed to post WM_CLOSE message: {}", e),
+      )
+    })?;
+  }
+  Ok(())
+}
+
+/// Focus the window (bring to foreground)
+pub fn focus_window(handle: i64) -> Result<()> {
+  unsafe {
+    let hwnd = HWND(handle as isize);
+    if hwnd.0 == 0 {
+      return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
+    }
+
+    if SetForegroundWindow(hwnd).as_bool() {
+      Ok(())
+    } else {
+      Err(Error::new(
+        Status::GenericFailure,
+        "Failed to set foreground window",
+      ))
+    }
+  }
+}
+
+/// Get the handle of the currently active (foreground) window
+pub fn get_active_window() -> Result<Option<i64>> {
+  unsafe {
+    let hwnd = GetForegroundWindow();
+    if hwnd.0 == 0 {
+      Ok(None)
+    } else {
+      Ok(Some(hwnd.0 as i64))
+    }
+  }
+}
+
+#[derive(Clone, Copy)]
+pub enum WindowState {
+  Minimize,
+  Maximize,
+  Restore,
+}
+
+/// Set the window state (Minimize, Maximize, Restore)
+pub fn set_window_state(handle: i64, state: WindowState) -> Result<()> {
+  unsafe {
+    let hwnd = HWND(handle as isize);
+    if hwnd.0 == 0 {
+      return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
+    }
+
+    let show_cmd = match state {
+      WindowState::Minimize => SW_MINIMIZE,
+      WindowState::Maximize => SW_MAXIMIZE,
+      WindowState::Restore => SW_RESTORE,
+    };
+
+    ShowWindow(hwnd, show_cmd);
+  }
+  Ok(())
+}
+
+/// Kill the process associated with the window
+pub fn kill_window_process(handle: i64) -> Result<()> {
+  unsafe {
+    let hwnd = HWND(handle as isize);
+    if hwnd.0 == 0 {
+      return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
+    }
+
+    let mut process_id: u32 = 0;
+    GetWindowThreadProcessId(hwnd, Some(&mut process_id));
+
+    let process_handle = OpenProcess(PROCESS_TERMINATE, false, process_id).map_err(|e| {
+      Error::new(
+        Status::GenericFailure,
+        format!("Failed to open process for termination: {}", e),
+      )
+    })?;
+
+    TerminateProcess(process_handle, 1).map_err(|e| {
+      Error::new(
+        Status::GenericFailure,
+        format!("Failed to terminate process: {}", e),
       )
     })?;
   }

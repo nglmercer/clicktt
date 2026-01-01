@@ -1,0 +1,44 @@
+name: Test
+on:
+  workflow_call:
+    inputs:
+      target:
+        required: true
+        type: string
+      host:
+        required: true
+        type: string
+      node-version:
+        required: true
+        type: string
+      architecture:
+        required: false
+        type: string
+        default: 'x64'
+
+jobs:
+  test:
+    runs-on: ${{ inputs.host }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          architecture: ${{ inputs.architecture }}
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: bindings-${{ inputs.target }}
+          path: .
+      - name: List packages
+        run: ls -R .
+        shell: bash
+      - name: Test bindings
+        run: bun test

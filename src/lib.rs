@@ -27,7 +27,27 @@ pub struct WindowInfo {
   /// Window width
   pub width: i32,
   /// Window height
+  /// Window height
   pub height: i32,
+  /// Path to the executable process that owns the window
+  pub path: String,
+}
+
+#[napi]
+pub enum WindowState {
+  Minimize,
+  Maximize,
+  Restore,
+}
+
+impl From<WindowState> for platform::WindowState {
+  fn from(state: WindowState) -> Self {
+    match state {
+      WindowState::Minimize => platform::WindowState::Minimize,
+      WindowState::Maximize => platform::WindowState::Maximize,
+      WindowState::Restore => platform::WindowState::Restore,
+    }
+  }
 }
 
 /// Enable click-through on a window (mouse events pass through)
@@ -114,4 +134,45 @@ pub fn set_window_opacity(handle: Unknown, opacity: f64) -> Result<()> {
   let handle_val = utils::to_i64(handle)?;
   let opacity = opacity.clamp(0.0, 1.0);
   platform::set_window_opacity(handle_val, opacity)
+}
+
+/// Get the executable path of the process that owns the window
+#[napi(js_name = "getWindowProcessPath")]
+pub fn get_window_process_path(handle: Unknown) -> Result<String> {
+  let handle_val = utils::to_i64(handle)?;
+  platform::get_window_process_path(handle_val)
+}
+
+/// Close the window
+#[napi(js_name = "closeWindow")]
+pub fn close_window(handle: Unknown) -> Result<()> {
+  let handle_val = utils::to_i64(handle)?;
+  platform::close_window(handle_val)
+}
+
+/// Focus the window (bring to foreground)
+#[napi(js_name = "focusWindow")]
+pub fn focus_window(handle: Unknown) -> Result<()> {
+  let handle_val = utils::to_i64(handle)?;
+  platform::focus_window(handle_val)
+}
+
+/// Get the handle of the currently active (foreground) window
+#[napi(js_name = "getActiveWindow")]
+pub fn get_active_window() -> Result<Option<i64>> {
+  platform::get_active_window()
+}
+
+/// Set the window state (Minimize, Maximize, Restore)
+#[napi(js_name = "setWindowState")]
+pub fn set_window_state(handle: Unknown, state: WindowState) -> Result<()> {
+  let handle_val = utils::to_i64(handle)?;
+  platform::set_window_state(handle_val, state.into())
+}
+
+/// Kill the process associated with the window
+#[napi(js_name = "killWindowProcess")]
+pub fn kill_window_process(handle: Unknown) -> Result<()> {
+  let handle_val = utils::to_i64(handle)?;
+  platform::kill_window_process(handle_val)
 }

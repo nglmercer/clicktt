@@ -170,7 +170,9 @@ pub fn get_windows() -> Result<Vec<WindowInfo>> {
         x,
         y,
         width,
+        width,
         height,
+        path: String::new(),
       });
     }
 
