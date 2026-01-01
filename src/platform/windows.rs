@@ -20,11 +20,11 @@ pub fn set_click_through(handle: i64, enable: bool) -> Result<()> {
       return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
     }
 
-    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as isize;
 
     let new_style = if enable {
       // Add WS_EX_TRANSPARENT and WS_EX_LAYERED for click-through
-      ex_style | (WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0) as isize
+      ex_style | (WS_EX_TRANSPARENT.0 as isize | WS_EX_LAYERED.0 as isize)
     } else {
       // Remove WS_EX_TRANSPARENT but keep WS_EX_LAYERED (for transparency support)
       (ex_style & !(WS_EX_TRANSPARENT.0 as isize)) | (WS_EX_LAYERED.0 as isize)
@@ -61,8 +61,8 @@ pub fn is_click_through(handle: i64) -> Result<bool> {
       return Err(Error::new(Status::InvalidArg, "Invalid window handle"));
     }
 
-    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as u32;
-    Ok((ex_style & WS_EX_TRANSPARENT.0) != 0)
+    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as isize;
+    Ok((ex_style & WS_EX_TRANSPARENT.0 as isize) != 0)
   }
 }
 
@@ -273,8 +273,8 @@ pub fn set_window_opacity(handle: i64, opacity: f64) -> Result<()> {
     }
 
     // Ensure WS_EX_LAYERED is set
-    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-    if (ex_style as u32 & WS_EX_LAYERED.0) == 0 {
+    let ex_style = GetWindowLongPtrW(hwnd, GWL_EXSTYLE) as isize;
+    if (ex_style & WS_EX_LAYERED.0 as isize) == 0 {
       SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED.0 as isize);
     }
 
