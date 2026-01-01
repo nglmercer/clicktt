@@ -48,6 +48,9 @@ jobs:
         with:
           name: bindings-${{ inputs.target }}
           path: .
+      - name: Build
+        run: ${{ inputs.build-command }}
+        shell: bash
       - name: List files
         run: ls -la .
         shell: bash
@@ -69,6 +72,4 @@ jobs:
             fi
             curl -fsSL https://bun.sh/install | bash
             export PATH="$HOME/.bun/bin:$PATH"
-            export NAPI_RS_NATIVE_LIBRARY_PATH=$(pwd)/$(ls *.node | head -n 1)
-            echo "Using native library: $NAPI_RS_NATIVE_LIBRARY_PATH"
             bun test
