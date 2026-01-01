@@ -48,9 +48,7 @@ jobs:
         with:
           name: bindings-${{ inputs.target }}
           path: .
-      - name: Build
-        run: ${{ inputs.build-command }}
-        shell: bash
+
       - name: List files
         run: ls -la .
         shell: bash
