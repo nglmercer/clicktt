@@ -134,6 +134,11 @@ jobs:
                 ;;
               aarch64-unknown-linux-gnu)
                 sudo dpkg --add-architecture arm64
+                sudo sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-backports main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports noble-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
                 sudo apt-get update
                 sudo apt-get install -y libx11-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
                 echo "PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
@@ -141,6 +146,11 @@ jobs:
                 ;;
               arm-unknown-linux-gnueabihf)
                 sudo dpkg --add-architecture armhf
+                sudo sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-updates main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-backports main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
+                echo "deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports noble-security main universe restricted multiverse" | sudo tee -a /etc/apt/sources.list
                 sudo apt-get update
                 sudo apt-get install -y libx11-dev:armhf gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf
                 echo "PKG_CONFIG_PATH=/usr/lib/arm-linux-gnueabihf/pkgconfig" >> $GITHUB_ENV
