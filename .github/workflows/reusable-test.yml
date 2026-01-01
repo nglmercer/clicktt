@@ -41,4 +41,7 @@ jobs:
         run: ls -laR .
         shell: bash
       - name: Test bindings
-        run: bun test
+        run: |
+          export NAPI_RS_NATIVE_LIBRARY_PATH=$(pwd)/$(ls *.node | head -n 1)
+          echo "Using native library: $NAPI_RS_NATIVE_LIBRARY_PATH"
+          bun test
