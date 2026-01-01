@@ -2,7 +2,7 @@ use crate::WindowInfo;
 use napi::bindgen_prelude::*;
 use std::collections::HashMap;
 use std::ffi::CStr;
-use std::os::raw::{c_int, c_long, c_ulong};
+use std::os::raw::{c_char, c_int, c_long, c_ulong};
 use std::ptr;
 use std::sync::Mutex;
 
@@ -56,9 +56,11 @@ pub fn is_click_through(handle: i64) -> Result<bool> {
 /// Get window name/title
 fn get_window_name(display: *mut Display, window: Window) -> String {
   unsafe {
-    let mut name: *mut i8 = ptr::null_mut();
-    if XFetchName(display, window, &mut name) != 0 && !name.is_null() {
-      let title = CStr::from_ptr(name).to_string_lossy().into_owned();
+    let mut name: *mut c_char = ptr::null_mut();
+    if XFetchName(display, window, &mut name as *mut *mut c_char) != 0 && !name.is_null() {
+      let title = CStr::from_ptr(name as *const c_char)
+        .to_string_lossy()
+        .into_owned();
       XFree(name as *mut _);
       title
     } else {
@@ -66,8 +68,8 @@ fn get_window_name(display: *mut Display, window: Window) -> String {
       let atom_name = b"_NET_WM_NAME\0";
       let utf8_string = b"UTF8_STRING\0";
 
-      let net_wm_name = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
-      let utf8_type = XInternAtom(display, utf8_string.as_ptr() as *const i8, 0);
+      let net_wm_name = XInternAtom(display, atom_name.as_ptr() as *const c_char, 0);
+      let utf8_type = XInternAtom(display, utf8_string.as_ptr() as *const c_char, 0);
 
       let mut actual_type: c_ulong = 0;
       let mut actual_format: c_int = 0;
@@ -91,7 +93,7 @@ fn get_window_name(display: *mut Display, window: Window) -> String {
       );
 
       if status == 0 && !prop.is_null() && nitems > 0 {
-        let title = CStr::from_ptr(prop as *const i8)
+        let title = CStr::from_ptr(prop as *const c_char)
           .to_string_lossy()
           .into_owned();
         XFree(prop as *mut _);
@@ -107,7 +109,7 @@ fn get_window_name(display: *mut Display, window: Window) -> String {
 fn get_window_pid(display: *mut Display, window: Window) -> u32 {
   unsafe {
     let atom_name = b"_NET_WM_PID\0";
-    let net_wm_pid = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
+    let net_wm_pid = XInternAtom(display, atom_name.as_ptr() as *const c_char, 0);
 
     let mut actual_type: c_ulong = 0;
     let mut actual_format: c_int = 0;
@@ -146,7 +148,7 @@ fn get_client_list(display: *mut Display, root: Window) -> Vec<Window> {
     use std::slice;
 
     let atom_name = b"_NET_CLIENT_LIST\0";
-    let net_client_list = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
+    let net_client_list = XInternAtom(display, atom_name.as_ptr() as *const c_char, 0);
 
     let mut actual_type: c_ulong = 0;
     let mut actual_format: c_int = 0;
@@ -174,7 +176,9 @@ fn get_client_list(display: *mut Display, root: Window) -> Vec<Window> {
     }
 
     let windows: Vec<Window> = if actual_format == 32 {
-      // X11 Window handles are usually c_ulong
+      // X11 Window handles are usually c_ulong/sizeof(long)
+      // On some platforms Window is u32, on others u64.
+      // We must match the pointer size.
       let window_ids = slice::from_raw_parts(prop as *const Window, nitems as usize);
       window_ids.to_vec()
     } else {
@@ -287,8 +291,8 @@ pub fn set_always_on_top(handle: i64, on_top: bool) -> Result<()> {
     let net_wm_state = b"_NET_WM_STATE\0";
     let net_wm_state_above = b"_NET_WM_STATE_ABOVE\0";
 
-    let wm_state = XInternAtom(display, net_wm_state.as_ptr() as *const i8, 0);
-    let state_above = XInternAtom(display, net_wm_state_above.as_ptr() as *const i8, 0);
+    let wm_state = XInternAtom(display, net_wm_state.as_ptr() as *const c_char, 0);
+    let state_above = XInternAtom(display, net_wm_state_above.as_ptr() as *const c_char, 0);
 
     let mut event: XEvent = std::mem::zeroed();
     event.client_message.type_ = ClientMessage;
@@ -325,7 +329,7 @@ pub fn set_window_opacity(handle: i64, opacity: f64) -> Result<()> {
     let window = handle as Window;
 
     let atom_name = b"_NET_WM_WINDOW_OPACITY\0";
-    let opacity_atom = XInternAtom(display, atom_name.as_ptr() as *const i8, 0);
+    let opacity_atom = XInternAtom(display, atom_name.as_ptr() as *const c_char, 0);
 
     // Opacity is stored as unsigned 32-bit value where 0xFFFFFFFF = fully opaque
     let opacity_value = (opacity * 0xFFFFFFFF_u32 as f64) as u32;
